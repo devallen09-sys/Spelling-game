@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Spelling Game</title>
+  <style>
+    :root { --radius: 14px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; background: #f7f7fb; color: #111; line-height: 1.45; }
+    header { position: sticky; top: 0; z-index: 10; background: white; border-bottom: 1px solid #ececf3; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    header h1 { font-size: 18px; margin: 0; }
+    main { padding: 16px; max-width: 880px; margin: 0 auto; }
+    .card { background: white; border: 1px solid #ececf3; border-radius: var(--radius); padding: 16px; margin: 12px 0; box-shadow: 0 6px 20px rgba(0,0,0,0.04); }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    label { font-weight: 600; }
+    input[type="text"], textarea, select { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid #d9dbe7; font-size: 16px; background: #fff; }
+    textarea { min-height: 120px; resize: vertical; }
+    button { appearance: none; border: none; cursor: pointer; font-weight: 600; padding: 12px 16px; border-radius: 12px; background: #111; color: white; font-size: 16px; }
+    button.ghost { background: #f0f1f6; color: #111; }
+    button.outline { background: white; border: 1px solid #d9dbe7; color: #111; }
+    button.small { padding: 10px 12px; font-size: 14px; }
+    .muted { color: #555; }
+    .hidden { display: none !important; }
+    .center { text-align: center; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+    .pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 999px; border: 1px solid #e6e6ef; background: #fafbff; font-size: 13px; color: #444; }
+    .key { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 1px 6px; border-radius: 6px; background: #111; color: #fff; font-size: 12px; }
+    .progress { height: 10px; background: #eee; border-radius: 999px; overflow: hidden; }
+    .progress > div { height: 100%; width: 0%; background: #111; transition: width .25s ease; }
+    .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+    .chip { background: #fafbff; border: 1px solid #e6e6ef; border-radius: 999px; padding: 8px 12px; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; }
+    .result-good { color: #0c7a3a; }
+    .result-bad { color: #b20027; }
+    .kbd { border: 1px solid #d9dbe7; border-bottom-width: 3px; padding: 8px 10px; border-radius: 10px; background: #fff; min-width: 180px; }
+    .footer { font-size: 13px; color: #555; text-align: center; padding: 24px 0 40px; }
+    .timer { font-variant-numeric: tabular-nums; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Spelling Game</h1>
+    <div class="row">
+      <button id="btnEdit" class="outline small">Edit words</button>
+      <button id="btnShare" class="ghost small" title="Create a shareable link for this week's list">Share link</button>
+      <button id="btnHow" class="ghost small">How to play</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="how" class="card hidden">
+      <h2>How it works</h2>
+      <ol>
+        <li>Tap <strong>Edit words</strong> to paste this week's list. (It saves on this device.)</li>
+        <li>Choose a mode and press <strong>Start</strong>.</li>
+        <li>Tap <strong>Speak</strong> 🔊 to hear the word, then type the spelling and hit <span class="key">Enter</span>.</li>
+      </ol>
+      <p class="muted">Tip: Long-press the 🎲 button to shuffle the word order.</p>
+      <p class="muted">Share a one-tap link that preloads this week's words using <em>Share link</em>.</p>
+    </section>
+
+    <section id="editor" class="card hidden">
+      <div class="row" style="justify-content: space-between;">
+        <h2 style="margin:0">Weekly Words</h2>
+        <button id="closeEditor" class="ghost small">Done</button>
+      </div>
+      <p class="muted">Paste one word per line. Optional: add a sentence after a comma, like <em>beautiful, You have a beautiful smile.</em></p>
+      <textarea id="wordInput" placeholder="cat
+because, I like pizza because it tastes good.
+friend
+mountain, We climbed the tall mountain.
+..."></textarea>
+      <div class="row" style="margin-top:10px; justify-content: space-between;">
+        <div class="row" style="gap:8px;">
+          <button id="saveWords">Save</button>
+          <button id="shuffleWords" class="ghost">Shuffle</button>
+          <button id="clearWords" class="ghost">Clear</button>
+        </div>
+        <div class="row" style="gap:8px;">
+          <button id="exportWords" class="outline">Export</button>
+          <input id="importFile" class="hidden" type="file" accept=".json" />
+          <button id="importBtn" class="ghost">Import</button>
+        </div>
+      </div>
+      <div id="currentList" class="card" style="margin-top:12px;">
+        <strong>Current list</strong>
+        <div class="list" id="listPreview"></div>
+      </div>
+    </section>
+
+    <section id="setup" class="card">
+      <h2>Start a Practice or Test</h2>
+      <div class="grid-2">
+        <div>
+          <label for="mode">Mode</label>
+          <select id="mode">
+            <option value="dictation">Dictation (hear the word)</option>
+            <option value="sentence">Sentence (blank to fill in)</option>
+          </select>
+        </div>
+        <div>
+          <label for="voiceSel">Voice (optional)</label>
+          <select id="voiceSel"></select>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-top:12px;">
+        <div>
+          <label><input type="checkbox" id="timerToggle" /> Enable timer per word (15s)</label>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <button id="startBtn">Start</button>
+        <button id="practiceBtn" class="ghost">Practice (no scoring)</button>
+        <button id="randomize" class="outline" title="Shuffle order">🎲 Shuffle</button>
+      </div>
+      <p class="muted" style="margin-top:8px;">Words on this device: <span id="countWords">0</span></p>
+    </section>
+
+    <section id="play" class="card hidden">
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div class="pill"><span id="pillMode">Dictation</span> • <span id="pillProgress">1/10</span></div>
+        <div class="row" style="gap:8px; align-items:center;">
+          <span id="timer" class="timer hidden">15</span>
+          <button id="speakBtn" class="outline small">🔊 Speak</button>
+          <button id="repeatBtn" class="ghost small">Repeat</button>
+        </div>
+      </div>
+
+      <div class="progress" style="margin:12px 0 14px;"><div id="bar"></div></div>
+
+      <div id="sentenceWrap" class="hidden">
+        <p id="sentence" class="kbd" aria-live="polite"></p>
+      </div>
+
+      <label for="answer">Type the word</label>
+      <input id="answer" type="text" autocomplete="off" placeholder="Type here and press Enter" />
+      <div class="row" style="margin-top:10px;">
+        <button id="skipBtn" class="ghost">Skip</button>
+        <button id="revealBtn" class="outline">Reveal</button>
+      </div>
+      <p id="feedback" class="muted" aria-live="polite" style="min-height:24px;"></p>
+    </section>
+
+    <section id="results" class="card hidden">
+      <h2>Results</h2>
+      <p class="muted" id="scoreLine"></p>
+      <div id="missedWrap" class="hidden">
+        <h3>Review missed words</h3>
+        <div id="missedList"></div>
+      </div>
+      <h3 style="margin-top:16px;">History on this device</h3>
+      <div id="historyList" class="muted"></div>
+      <div class="row" style="margin-top:12px; justify-content: space-between;">
+        <button id="retryBtn">Retry missed</button>
+        <button id="restartBtn" class="ghost">New round</button>
+      </div>
+    </section>
+
+    <p class="footer">Made for weekly word lists. Your changes auto-save in this browser. Share this week's list with the "Share link" button.</p>
+  </main>
+
+  <script>
+    // ------- Data handling -------
+    const LS_KEY = "spelling_words_v2";
+    const LS_HIST = "spelling_history_v1";
+
+    function defaultWords() {
+      return [
+        {w:"because", s:"I like pizza because it tastes good."},
+        {w:"friend", s:"My friend came over to play."},
+        {w:"beautiful", s:"You have a beautiful smile."},
+        {w:"mountain", s:"We climbed the tall mountain."},
+        {w:"important", s:"It is important to study."},
+        {w:"family", s:"My family is going on vacation."},
+        {w:"practice", s:"We practice spelling every day."},
+        {w:"picture", s:"I drew a picture of a house."},
+        {w:"different", s:"We chose different flavors of ice cream."},
+        {w:"through", s:"We walked through the park."}
+      ];
+    }
+    function loadWords() {
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (!raw) return defaultWords();
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr) && arr.every(x => x && typeof x.w === 'string')) return arr;
+      } catch {}
+      return defaultWords();
+    }
+    function saveWords(list) {
+      localStorage.setItem(LS_KEY, JSON.stringify(list));
+      renderListPreview();
+      updateCount();
+    }
+    function parseTextArea(text) {
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const out = [];
+      for (const line of lines) {
+        const [w, ...rest] = line.split(",");
+        const word = (w || "").trim();
+        const s = rest.join(",").trim();
+        if (word) out.push({ w: word, s: s || "" });
+      }
+      return out;
+    }
+    function exportJSON() {
+      const data = loadWords();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "spelling-words.json";
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      a.remove();
+    }
+    function renderListPreview() {
+      const list = loadWords();
+      const root = document.getElementById("listPreview");
+      root.innerHTML = "";
+      for (const item of list) {
+        const div = document.createElement("div");
+        div.className = "chip";
+        div.textContent = item.w;
+        root.appendChild(div);
+      }
+    }
+    function updateCount() {
+      const n = loadWords().length;
+      document.getElementById("countWords").textContent = String(n);
+    }
+
+    // ------- History -------
+    function addHistory(entry) {
+      const hist = getHistory();
+      hist.unshift(entry);
+      while (hist.length > 50) hist.pop();
+      localStorage.setItem(LS_HIST, JSON.stringify(hist));
+    }
+    function getHistory() {
+      try {
+        const raw = localStorage.getItem(LS_HIST);
+        if (!raw) return [];
+        const arr = JSON.parse(raw);
+        return Array.isArray(arr) ? arr : [];
+      } catch { return []; }
+    }
+    function renderHistory() {
+      const hist = getHistory();
+      const root = document.getElementById("historyList");
+      if (!hist.length) { root.textContent = "No history yet."; return; }
+      root.innerHTML = "";
+      hist.forEach(h => {
+        const p = document.createElement("p");
+        const dt = new Date(h.ts).toLocaleString();
+        p.textContent = `${dt} — ${h.mode}${h.practice ? " (practice)" : ""}: ${h.right}/${h.total}`;
+        root.appendChild(p);
+      });
+    }
+
+    // ------- UI state -------
+    const $ = sel => document.querySelector(sel);
+    const $$ = sel => document.querySelectorAll(sel);
+    const show = (id, on=true) => { const el = (typeof id === "string") ? $(id) : id; el.classList.toggle("hidden", !on); };
+    const editor = $("#editor");
+    const how = $("#how");
+    $("#btnEdit").addEventListener("click", () => { show(editor, true); show(how, false); $("#wordInput").value = loadWords().map(x => x.s ? (x.w + ", " + x.s) : x.w).join("\n"); renderListPreview(); });
+    $("#closeEditor").addEventListener("click", () => show(editor, false));
+    $("#btnHow").addEventListener("click", () => { how.classList.toggle("hidden"); });
+
+    $("#saveWords").addEventListener("click", () => {
+      const parsed = parseTextArea($("#wordInput").value);
+      if (!parsed.length) { alert("Please add at least one word."); return; }
+      saveWords(parsed);
+      alert("Saved! Words updated on this device.");
+    });
+    $("#clearWords").addEventListener("click", () => {
+      $("#wordInput").value = "";
+      renderListPreview();
+    });
+    $("#shuffleWords").addEventListener("click", () => {
+      const a = parseTextArea($("#wordInput").value);
+      if (!a.length) { alert("Nothing to shuffle."); return; }
+      shuffle(a);
+      $("#wordInput").value = a.map(x => x.s ? (x.w + ", " + x.s) : x.w).join("\n");
+    });
+    $("#exportWords").addEventListener("click", exportJSON);
+    $("#importBtn").addEventListener("click", () => $("#importFile").click());
+    $("#importFile").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const arr = JSON.parse(reader.result);
+          if (!Array.isArray(arr)) throw new Error("Invalid JSON");
+          saveWords(arr);
+          $("#wordInput").value = arr.map(x => x.s ? (x.w + ", " + x.s) : x.w).join("\n");
+          alert("Imported!");
+        } catch (err) {
+          alert("Couldn't import: " + err.message);
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    // ------- Share link -------
+    function makeShareURL(list) {
+      const payload = JSON.stringify(list);
+      const b64 = btoa(unescape(encodeURIComponent(payload)));
+      const base = location.origin + location.pathname.replace(/index\.html$/i,"");
+      return `${base}?words_b64=${b64}`;
+    }
+    $("#btnShare").addEventListener("click", async () => {
+      const list = loadWords();
+      if (!list.length) { alert("No words to share."); return; }
+      const url = makeShareURL(list);
+      try {
+        await navigator.clipboard.writeText(url);
+        alert("Shareable link copied to clipboard! Paste it into a text to your daughter.");
+      } catch {
+        prompt("Copy this link:", url);
+      }
+    });
+
+    // ------- URL import -------
+    function tryURLImport() {
+      const params = new URLSearchParams(location.search);
+      const b64 = params.get("words_b64");
+      if (!b64) return;
+      try {
+        const payload = decodeURIComponent(escape(atob(b64)));
+        const list = JSON.parse(payload);
+        if (Array.isArray(list) && list.length && list.every(x => x && typeof x.w === "string")) {
+          saveWords(list);
+          alert("This week's words were loaded from the link. Tap Start to begin!");
+        }
+      } catch {}
+    }
+
+    // ------- Game logic -------
+    const state = {
+      list: [], i: 0, mode: "dictation", practice: false, history: [], voice: null, lastUtterance: null,
+      useTimer: false, timerSec: 15, timerId: null,
+    };
+
+    function shuffle(a) {
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+    }
+
+    function start(practice=false) {
+      state.practice = practice;
+      state.mode = $("#mode").value;
+      state.useTimer = $("#timerToggle").checked;
+      state.list = loadWords().map(x => ({...x}));
+      if (!state.list.length) { alert("No words to play. Add words first."); return; }
+      state.i = 0;
+      state.history = [];
+      $("#answer").value = "";
+      $("#feedback").textContent = "";
+      $("#pillMode").textContent = state.mode === "dictation" ? "Dictation" : "Sentence";
+      show("#setup", false);
+      show("#results", false);
+      show("#play", true);
+      updateProgress();
+      present();
+    }
+
+    $("#startBtn").addEventListener("click", () => start(false));
+    $("#practiceBtn").addEventListener("click", () => start(true));
+    $("#randomize").addEventListener("click", () => { const a = loadWords(); shuffle(a); saveWords(a); alert("Shuffled!"); });
+
+    function present() {
+      const item = state.list[state.i];
+      $("#answer").focus();
+      $("#sentenceWrap").classList.toggle("hidden", state.mode !== "sentence");
+      if (state.mode === "sentence") {
+        const re = new RegExp(item.w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig");
+        const s = (item.s || "_____").replace(re, "_____");
+        $("#sentence").textContent = s;
+      }
+      if (state.mode === "dictation") speakWord(item.w, item.s);
+      if (state.useTimer) startTimer();
+    }
+
+    function updateProgress() {
+      $("#pillProgress").textContent = (state.i+1) + "/" + state.list.length;
+      $("#bar").style.width = ((state.i) / state.list.length * 100) + "%";
+    }
+
+    function normalize(s) {
+      return (s || "").toLowerCase().replace(/[^a-z\-']/g, "");
+    }
+
+    function check(answer) {
+      stopTimer(false);
+      const item = state.list[state.i];
+      const correct = normalize(answer) === normalize(item.w);
+      state.history.push({ w: item.w, user: answer, correct });
+      if (!state.practice) {
+        $("#feedback").innerHTML = correct
+          ? "<span class='result-good'>✅ Correct!</span>"
+          : "<span class='result-bad'>✗ Not quite. Try again or tap Reveal.</span>";
+      } else {
+        $("#feedback").textContent = correct ? "✅ Correct" : "✗ Try again";
+      }
+      if (correct) next();
+      else if (state.useTimer) startTimer(); // resume timer for another attempt
+    }
+
+    function next() {
+      state.i++;
+      if (state.i >= state.list.length) return endRound();
+      $("#answer").value = "";
+      $("#feedback").textContent = "";
+      updateProgress();
+      present();
+    }
+
+    function endRound() {
+      stopTimer(true);
+      show("#play", false);
+      show("#results", true);
+      $("#bar").style.width = "100%";
+      const total = state.history.length;
+      const right = state.history.filter(h => h.correct).length;
+      $("#scoreLine").textContent = state.practice ? "Practice complete." : `Score: ${right} / ${total}`;
+
+      const missed = state.history.filter(h => !h.correct);
+      const wrap = $("#missedWrap");
+      const list = $("#missedList");
+      list.innerHTML = "";
+      if (missed.length) {
+        wrap.classList.remove("hidden");
+        missed.forEach(m => {
+          const p = document.createElement("p");
+          p.innerHTML = `<strong>${m.w}</strong> — you typed “${m.user || "—"}” `;
+          const playBtn = document.createElement("button");
+          playBtn.textContent = "🔊";
+          playBtn.className = "small outline";
+          playBtn.addEventListener("click", () => speakWord(m.w));
+          p.appendChild(playBtn);
+          list.appendChild(p);
+        });
+      } else {
+        wrap.classList.add("hidden");
+      }
+
+      // save to history
+      addHistory({
+        ts: Date.now(),
+        mode: state.mode,
+        practice: state.practice,
+        right, total
+      });
+      renderHistory();
+    }
+
+    $("#answer").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        check($("#answer").value.trim());
+      }
+    });
+    $("#skipBtn").addEventListener("click", () => { stopTimer(false); next(); });
+    $("#revealBtn").addEventListener("click", () => {
+      const item = state.list[state.i];
+      $("#answer").value = item.w;
+      $("#feedback").innerHTML = "<span class='muted'>Revealed.</span>";
+    });
+
+    // ------- Timer -------
+    function startTimer() {
+      const el = document.getElementById("timer");
+      let t = state.timerSec;
+      el.textContent = String(t);
+      el.classList.remove("hidden");
+      clearInterval(state.timerId);
+      state.timerId = setInterval(() => {
+        t--; el.textContent = String(t);
+        if (t <= 0) {
+          clearInterval(state.timerId);
+          el.classList.add("hidden");
+          const item = state.list[state.i];
+          $("#feedback").innerHTML = `<span class='result-bad'>⏰ Time's up. The word was <strong>${item.w}</strong>.</span>`;
+          state.history.push({ w: item.w, user: "", correct: false });
+          next();
+        }
+      }, 1000);
+    }
+    function stopTimer(hide) {
+      clearInterval(state.timerId);
+      if (hide) document.getElementById("timer").classList.add("hidden");
+    }
+
+    // ------- Speech -------
+    const voiceSel = $("#voiceSel");
+    let voices = [];
+    function loadVoices() {
+      voices = speechSynthesis.getVoices();
+      voiceSel.innerHTML = "<option value=''>System default</option>";
+      voices.forEach(v => {
+        const o = document.createElement("option");
+        o.value = v.name;
+        o.textContent = v.name + (v.lang ? ` (${v.lang})` : "");
+        voiceSel.appendChild(o);
+      });
+    }
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+
+    $("#speakBtn").addEventListener("click", () => {
+      const item = state.list[state.i];
+      speakWord(item.w, item.s);
+    });
+    $("#repeatBtn").addEventListener("click", () => {
+      if (state.lastUtterance) window.speechSynthesis.speak(state.lastUtterance);
+      else { const item = state.list[state.i]; speakWord(item.w, item.s); }
+    });
+    function speakWord(word, sentence="") {
+      const u1 = new SpeechSynthesisUtterance(word);
+      const u2 = sentence ? new SpeechSynthesisUtterance(sentence) : null;
+      const name = voiceSel.value;
+      const v = voices.find(x => x.name === name);
+      if (v) { u1.voice = v; if (u2) u2.voice = v; }
+      u1.rate = 0.95; u1.pitch = 1.0;
+      state.lastUtterance = u1;
+      window.speechSynthesis.cancel(); // stop prior
+      window.speechSynthesis.speak(u1);
+      if (u2) setTimeout(() => window.speechSynthesis.speak(u2), 400);
+    }
+
+    // ------- Results actions -------
+    $("#retryBtn").addEventListener("click", () => {
+      const missedWords = state.history.filter(h => !h.correct).map(h => ({w: h.w, s: (loadWords().find(x=>x.w===h.w)||{}).s || ""}));
+      if (!missedWords.length) { alert("No missed words — great job!"); return; }
+      state.list = missedWords;
+      state.i = 0;
+      state.history = [];
+      show("#results", false);
+      show("#play", true);
+      updateProgress();
+      present();
+    });
+    $("#restartBtn").addEventListener("click", () => {
+      show("#results", false);
+      show("#setup", true);
+    });
+
+    // Init
+    renderListPreview();
+    updateCount();
+    renderHistory();
+    tryURLImport();
+  </script>
+</body>
+</html>
